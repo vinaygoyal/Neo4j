@@ -1,19 +1,77 @@
+-- Delete database
+
+MATCH (n)
+OPTIONAL MATCH (n)-[r]-()
+DELETE n,r
+
 -- Create database
 
-CREATE (bu1:BusinessUnit{name:"Finance"}),(bu2:BusinessUnit{name:"Technology"}),(bu3:BusinessUnit{name:"Marketing"}),
-(dv:Division{name:"Retail"}),(dv1:Division{name:"Software"}),(dv2:Division{name:"Hardware"}),(dv3:Division{name:"Sales"}),
-(dp1:Department{name:"FRD"}),(dp2:Department{name:"ITH"}),(dp3:Department{name:"ITS"}),(dp4:Department{name:"MKT"})
-,(rm1:Room{name:"R1",area:10}),(rm2:Room{name:"R2",area:10}),(rm3:Room{name:"R3",area:10}),(rm4:Room{name:"R4",area:10})
-,(rm5:Room{name:"R5",area:10}), dv-[:BELONGS_TO]->bu1, dv1-[:BELONGS_TO]->bu2, dv2-[:BELONGS_TO]->bu2, dv3-[:BELONGS_TO]-
->bu3,dp1-[:BELONGS_TO]->dv1, dp2-[:BELONGS_TO]->dv2, dp3-[:BELONGS_TO]->dv2, dp4-[:BELONGS_TO]->dv3,rm1-[:ASSIGNED_TO]-
->dp1, rm2-[:ASSIGNED_TO]->dp2, rm3-[:ASSIGNED_TO]->dp2, rm4-[:ASSIGNED_TO]->dp3, rm4-[:ASSIGNED_TO]->dp4
+WITH ["Finance","Technology","Marketing"] AS names
+FOREACH (r IN range(1,size(names)) | CREATE (:BusinessUnit {id:"bu"+r, name:names[r-1]}));
+
+WITH ["Retail","Software","Hardware","Sales"]  AS names
+FOREACH (r IN range(1,size(names)) | CREATE (:Division {id:"dv"+r, name:names[r-1]}));
+
+WITH ["FRD","ITH","ITS","MKT"] AS names
+FOREACH (r IN range(1,size(names)) | CREATE (:Department {id:"dp"+r, name:names[r-1]}));
+
+WITH ["R1","R2","R3","R4","R5"] AS names
+FOREACH (r IN range(1,size(names)) | CREATE (:Room {id:"rm"+r, name:names[r-1], area:10*r}));
+
+MATCH (bu:BusinessUnit  {name:"Finance"}), (dv:Division {name:"Retail"})
+CREATE (bu)<-[:BELONGS_TO]-(dv);
+
+MATCH (bu:BusinessUnit  {name:"Technology"}), (dv:Division {name:"Software"})
+CREATE (bu)<-[:BELONGS_TO]-(dv);
+
+MATCH (bu:BusinessUnit  {name:"Technology"}), (dv:Division {name:"Hardware"})
+CREATE (bu)<-[:BELONGS_TO]-(dv);
+
+MATCH (bu:BusinessUnit  {name:"Marketing"}), (dv:Division {name:"Sales"})
+CREATE (bu)<-[:BELONGS_TO]-(dv);
+
+MATCH (dp:Department {name:"FRD"}), (dv:Division {name:"Retail"})
+CREATE (dp)-[:BELONGS_TO]->(dv);
+
+MATCH (dp:Department  {name:"ITS"}), (dv:Division {name:"Software"})
+CREATE (dp)-[:BELONGS_TO]->(dv);
+
+MATCH (dp:Department  {name:"ITH"}), (dv:Division {name:"Hardware"})
+CREATE (dp)-[:BELONGS_TO]->(dv);
+
+MATCH (dp:Department  {name:"MKT"}), (dv:Division {name:"Sales"})
+CREATE (dp)-[:BELONGS_TO]->(dv);
+
+MATCH (dp:Department {name:"FRD"}), (rm:Room {name:"R1"})
+CREATE (dp)<-[:ASSIGNED_TO]-(rm);
+
+MATCH (dp:Department  {name:"ITS"}), (rm:Room {name:"R2"})
+CREATE (dp)<-[:ASSIGNED_TO]-(rm);
+
+MATCH (dp:Department  {name:"ITH"}), (rm:Room {name:"R3"})
+CREATE (dp)<-[:ASSIGNED_TO]-(rm);
+
+MATCH (dp:Department  {name:"MKT"}), (rm:Room {name:"R4"})
+CREATE (dp)<-[:ASSIGNED_TO]-(rm);
+
+MATCH (dp:Department  {name:"MKT"}), (rm:Room {name:"R5"})
+CREATE (dp)<-[:ASSIGNED_TO]-(rm);
+
+MATCH (dp:Department {name:"FRD"}), (rm:Room {name:"R3"})
+CREATE (dp)<-[:ASSIGNED_TO]-(rm);
 
 -- Query that returns group by business unit, division, department
 
 MATCH (bu:BusinessUnit)<--(dv)<--(dp)<-[:ASSIGNED_TO]-(rm)
-RETURN bu.name, collect(DISTINCT dv.name), collect(DISTINCT dp.name), collect(DISTINCT rm.name), sum(rm.area)
+RETURN bu.name AS Business, collect(DISTINCT dv.name) AS Division, collect(DISTINCT dp.name) AS Departements, collect(DISTINCT rm.name) AS Rooms, sum(rm.area) As TotalArea
 
--- Query that returns rooms assigned to business unit or division or department
+-- Query that returns rooms assigned to business unit and sum of their areas.
 
-MATCH (rm:Room)-[*1..3]->(n)
-RETURN n, collect(DISTINCT rm.name), sum(rm.area)
+MATCH (rm:Room)-[*]->(bu:BusinessUnit)
+RETURN  bu.name as BusinessUnit, collect(DISTINCT rm.name) as Room, sum(rm.area) as TotalArea
+
+-- Query to return each room assigned under a business unit
+
+MATCH p=(bu:BusinessUnit)<-[*]-(rm:Room)
+RETURN  extract(n IN nodes(p)| n.name) as Path,  sum(rm.area) as TotalArea
+
